@@ -17,10 +17,12 @@
 #                   default_serial = "avrdoper"
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
+print-%: ; @echo $*=$($*)
+
 DEVICE     = atmega644
 CLOCK      = 16000000
 PROGRAMMER = -c avrispmkII -P usb
-OBJECTS    = main.o lcd_lib.o
+OBJECTS    = main.o lcd_lib.o uart.o
 FUSES      = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
 
 # ATMega644 fuse bits used above (fuse bits for other devices are different!):
