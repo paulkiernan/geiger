@@ -34,9 +34,9 @@ int rad_counter = 0;            // CPM
 int8_t lcd_buffer[17];          // LCD display buffer
 volatile unsigned char time1;   // timeout counter
 unsigned char led;              // light states
-const int8_t LCD_initialize[] PROGMEM = "LCD Initialized\0";
-const int8_t LCD_chartbeat[] PROGMEM = "CHARTBEAT    CPM\0"; // LCD init msg
-const int8_t LCD_hackweek[]  PROGMEM = "HACKWEEK!\0";  // LCD init msg
+const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized\0";
+const uint8_t LCD_chartbeat[] PROGMEM = "CHARTBEAT    CPM\0"; // LCD init msg
+const uint8_t LCD_hackweek[]  PROGMEM = "HACKWEEK!\0";  // LCD init msg
 
 //**********************************************************
 //timer 0 compare ISR
@@ -47,13 +47,11 @@ ISR (TIMER0_COMPA_vect){
 
 
 // Handle external interrupt 0
-ISR (INT0_vect){
-    rad_counter += 1;
+ISR (INT1_vect){
+    /*fprintf(stdout, "Dropped into the interrupt routine!");*/
+    rad_counter++;
 }
 
-
-//**********************************************************
-//Entry point and task scheduler loop
 int main(void){
     initialize();
     uart_init();    // init the UART -- uart_init() is in uart.c
@@ -63,54 +61,24 @@ int main(void){
     fprintf(stdout, "Starting Geiger Counter...\n\r");
     fprintf(stdout, "##########################\n\r");
 
-    init_lcd();     // init the LCD screen
+    /*init_lcd();     // init the LCD screen*/
 
     //main task scheduler loop
-    int temp_clicks = 0;
     while(1){
         if (time1==0){
             time1=t1;
             led_heartbeat();
         }
-        if (temp_clicks != rad_counter){
-            sprintf(lcd_buffer, "SClicks: %i", rad_counter);
-            fprintf(stdout, "FClicks: %i\n\r", rad_counter);
-            LCDGotoXY(0, 1);
-            LCDstring(lcd_buffer, strlen(lcd_buffer));
-            temp_clicks = rad_counter;
-        }
-        //get the sample
-        int read_channel = 0;
-        Ain = ReadADC(read_channel);
 
-        sprintf(lcd_buffer, "SAin: %ld", Ain);
-        fprintf(stdout, "FAin: %ld\n\r", Ain);
+        /*sprintf(lcd_buffer, "SAin: %ld", Ain);*/
+        fprintf(stdout, "FAin: %i\n\r", rad_counter);
         /*LCDGotoXY(0, 1);*/
         /*LCDstring(lcd_buffer, strlen(lcd_buffer));*/
-        /*_delay_ms(50);*/
+        _delay_ms(50);
     }
 }
 
-uint16_t ReadADC(uint8_t ADCchannel){
-    long result;
 
-    //select ADC channel with safety mask
-    ADMUX = (ADMUX & 0xF0) | (ADCchannel & 0x0F);
-    //single conversion mode
-    ADCSRA |= (1<<ADSC);
-
-    // wait until ADC conversion is complete
-    while( ADCSRA & (1<<ADSC) );
-
-    result = ADCL;
-    result |= ADCH<<8;
-    result = 1126400L / result; // Back-calculate AVcc in mV
-
-    return result;
-}
-
-//**********************************************************
-//Task 1
 void led_heartbeat(void){
     //toggle the second bit
     led = led ^ 1 ;
@@ -118,14 +86,7 @@ void led_heartbeat(void){
 }
 
 
-//**********************************************************
-//Set it all up
 void initialize(void){
-
-    // Select Vref=AVcc
-    ADMUX |= (1<<REFS0);
-    //set prescaller to 128 and enable ADC
-    ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0)|(1<<ADEN);
 
     DDRD = (1<<PORTD2);    // PORT D.2 is an output
 
@@ -144,11 +105,18 @@ void initialize(void){
     time1=t1;
 
     /*GICR = 1<<INT0;                 // Enable INT0*/
-    MCUCR = 1<<ISC01 | 1<<ISC00;    // Trigger INT0 on rising edge
+    /*GICR |= ( 1 << INT1);*/
+    /*//falling edge triggers interrupt0*/
+    /*MCUCR |= ( 0 << ISC00);*/
+    /*MCUCR |= ( 1 << ISC01);*/
+    //falling edge interrupt 1
+    EIMSK |= (1 << INT1);     // Turns on INT1
+    /*MCUCR = 1<<ISC11 | 1<<ISC10;    // Trigger INT0 on rising edge*/
 
     //crank up the ISRs
     sei();
 }
+
 
 void init_lcd(void){
     _delay_ms(500);
