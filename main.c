@@ -15,15 +15,14 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 #include <util/delay.h>     // Required by lcd_lib for LCD timing
 #include <avr/pgmspace.h>   // Another requirement of (static) LCD printing
 #include "lcd_lib.h"        // LCD driver
-//timeout values for each task
+
+/* Program Definitions */
 #define t1 250
 
-// task subroutines
 void led_heartbeat(void);       //blink at 2 or 8 Hz
 void initialize(void);  //all the usual mcu stuff
 void init_lcd(void);    //initalize the LCD
 
-long Ain;                       // raw A to D number
 int rad_counter = 0;            // CPM
 int8_t lcd_buffer[17];          // LCD display buffer
 volatile unsigned char time1;   // timeout counter
@@ -32,20 +31,20 @@ const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized\0";
 const uint8_t LCD_chartbeat[] PROGMEM = "CHARTBEAT    CPM\0"; // LCD init msg
 const uint8_t LCD_hackweek[]  PROGMEM = "HACKWEEK!\0";  // LCD init msg
 
-//**********************************************************
-//timer 0 compare ISR
+/******************************************************************************/
+/* Interrupt Service Routines                                                 */
+
+// Timer 0 compare ISR
 ISR (TIMER0_COMPA_vect){
     //Decrement the  time if they are not already zero
     if (time1>0)    --time1;
 }
 
-
-// Handle external interrupt 1
+// Handle trigger
 ISR (INT1_vect){
-    /*fprintf(stdout, "Dropped into the interrupt routine!");*/
     rad_counter++;
-    _delay_ms(1);
 }
+/******************************************************************************/
 
 int main(void){
 
@@ -74,6 +73,8 @@ void led_heartbeat(void){
 }
 
 
+/******************************************************************************/
+/* Initializations                                                            */
 void initialize(void){
 
     // Initialize microcontroller ports and registers
@@ -87,20 +88,13 @@ void initialize(void){
     // turn on clear-on-match
     TCCR0A= (1<<WGM01) ;
 
-    //init the LED status
+    // Init the LED state and task timer
     led=0x00;
-
-    //init the task timer
     time1=t1;
 
-    /*GICR = 1<<INT0;                 // Enable INT0*/
-    /*GICR |= ( 1 << INT1);*/
-    /*//falling edge triggers interrupt0*/
-    /*MCUCR |= ( 0 << ISC00);*/
-    /*MCUCR |= ( 1 << ISC01);*/
-    //falling edge interrupt 1
-    EIMSK |= (1 << INT1);     // Turns on INT1
-    /*MCUCR = 1<<ISC11 | 1<<ISC10;    // Trigger INT0 on rising edge*/
+    // Set up the INT1 External Interrupt pin
+    EIMSK |= (1 << INT1);           // Turns on INT1
+    EICRA = 1<<ISC11 | 1<<ISC10;    // Trigger INT1 on rising edge
 
     //crank up the ISRs
     sei();
@@ -132,3 +126,4 @@ void init_lcd(void){
     CopyStringtoLCD(LCD_chartbeat, 0, 0);
     CopyStringtoLCD(LCD_hackweek, 0, 1);
 }
+/******************************************************************************/
