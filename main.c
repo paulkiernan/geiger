@@ -4,10 +4,6 @@
  * License: <insert your license reference here>
  */
 
-// This pgm just blinks D.2 for testing the protoboard.
-
-//***********************************************************************
-// Includes
 #include <inttypes.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -19,7 +15,6 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 #include <util/delay.h>     // Required by lcd_lib for LCD timing
 #include <avr/pgmspace.h>   // Another requirement of (static) LCD printing
 #include "lcd_lib.h"        // LCD driver
-
 //timeout values for each task
 #define t1 250
 
@@ -27,7 +22,6 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 void led_heartbeat(void);       //blink at 2 or 8 Hz
 void initialize(void);  //all the usual mcu stuff
 void init_lcd(void);    //initalize the LCD
-uint16_t  ReadADC(uint8_t);    //initalize the LCD
 
 long Ain;                       // raw A to D number
 int rad_counter = 0;            // CPM
@@ -46,34 +40,28 @@ ISR (TIMER0_COMPA_vect){
 }
 
 
-// Handle external interrupt 0
+// Handle external interrupt 1
 ISR (INT1_vect){
     /*fprintf(stdout, "Dropped into the interrupt routine!");*/
     rad_counter++;
+    _delay_ms(1);
 }
 
 int main(void){
+
     initialize();
-    uart_init();    // init the UART -- uart_init() is in uart.c
-    stdout = stdin = stderr = &uart_str;
-    fprintf(stdout, "\033[2J");
-    fprintf(stdout, "##########################\n\r");
-    fprintf(stdout, "Starting Geiger Counter...\n\r");
-    fprintf(stdout, "##########################\n\r");
 
-    /*init_lcd();     // init the LCD screen*/
-
-    //main task scheduler loop
+    // Main Program loop
     while(1){
         if (time1==0){
-            time1=t1;
-            led_heartbeat();
+            time1=t1;           // Reset time accumulator
+            led_heartbeat();    // Blink LED
         }
 
-        /*sprintf(lcd_buffer, "SAin: %ld", Ain);*/
-        fprintf(stdout, "FAin: %i\n\r", rad_counter);
-        /*LCDGotoXY(0, 1);*/
-        /*LCDstring(lcd_buffer, strlen(lcd_buffer));*/
+        sprintf(lcd_buffer, "Tot Clicks: %i", rad_counter);
+        fprintf(stdout, "Total Clicks: %i\n\r", rad_counter);
+        LCDGotoXY(0, 1);
+        LCDstring(lcd_buffer, strlen(lcd_buffer));
         _delay_ms(50);
     }
 }
@@ -88,6 +76,7 @@ void led_heartbeat(void){
 
 void initialize(void){
 
+    // Initialize microcontroller ports and registers
     DDRD = (1<<PORTD2);    // PORT D.2 is an output
 
     //set up timer 0 for 1 mSec timebase
@@ -115,6 +104,17 @@ void initialize(void){
 
     //crank up the ISRs
     sei();
+
+    // Initialize UART comm
+    uart_init();
+    stdout = stdin = stderr = &uart_str;
+    fprintf(stdout, "\033[2J");
+    fprintf(stdout, "##########################\n\r");
+    fprintf(stdout, "Starting Geiger Counter...\n\r");
+    fprintf(stdout, "##########################\n\r");
+
+    // Initialize the LCD
+    init_lcd();
 }
 
 
