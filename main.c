@@ -17,19 +17,27 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 #include "lcd_lib.h"        // LCD driver
 
 /* Program Definitions */
-#define t1 250
+#define T250MILLISECONDS 250
+#define T1SECOND 1000
+#define T1MINUTE 60000
 
-void led_heartbeat(void);       //blink at 2 or 8 Hz
-void initialize(void);  //all the usual mcu stuff
-void init_lcd(void);    //initalize the LCD
+void initialize(void);      // All the usual mcu stuff
+void init_lcd(void);        // Initalize the LCD
+void toggle_led(void);      // Blink the LED on PORTD2
+void clear_array(uint8_t a[], int num_elements);
+int  sum_array(uint8_t a[], int num_elements);
+void print_array(uint8_t a[], int num_elements);
 
 int rad_counter = 0;            // CPM
-int8_t lcd_buffer[17];          // LCD display buffer
-volatile unsigned char time1;   // timeout counter
-unsigned char led;              // light states
-const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized\0";
-const uint8_t LCD_chartbeat[] PROGMEM = "CHARTBEAT    CPM\0"; // LCD init msg
-const uint8_t LCD_hackweek[]  PROGMEM = "HACKWEEK!\0";  // LCD init msg
+uint8_t lcd_buffer[17];          // LCD display buffer
+volatile unsigned char time1;   // LED blink counter
+volatile unsigned int time2;    // Minute counter
+unsigned char led;              // LED state
+const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized \0";
+const uint8_t LCD_header[]     PROGMEM = "Total   | CPM   \0";
+uint8_t click_counter[60];
+
+volatile unsigned int time2_index;
 
 /******************************************************************************/
 /* Interrupt Service Routines                                                 */
@@ -37,12 +45,22 @@ const uint8_t LCD_hackweek[]  PROGMEM = "HACKWEEK!\0";  // LCD init msg
 // Timer 0 compare ISR
 ISR (TIMER0_COMPA_vect){
     //Decrement the  time if they are not already zero
-    if (time1>0)    --time1;
+    if (time1>0){
+        time1--;
+    }
+    if (time2>0){
+        time2--;
+
+    }
 }
 
 // Handle trigger
 ISR (INT1_vect){
-    rad_counter++;
+    rad_counter++;                  // Accumulate total rad counter
+    click_counter[time2/1000]++;    // Accumulate in a cpm circular array
+
+    // Ping the serial port that we detected an ionization event
+    fprintf(stdout, "detected ionization event!\n\r");
 }
 /******************************************************************************/
 
@@ -51,25 +69,62 @@ int main(void){
     initialize();
 
     // Main Program loop
+    int clicks_per_minute = 0;
     while(1){
         if (time1==0){
-            time1=t1;           // Reset time accumulator
-            led_heartbeat();    // Blink LED
+            time1=T250MILLISECONDS;     // Reset time counter
+            toggle_led();               // Blink LED
+
+            // Clear adjacent element in circular array
+            // Timer counts down from 60 so we -- for the next element
+            time2_index = time2/1000;
+            if (time2_index == 0){
+                time2_index = 60;
+            }
+            click_counter[time2_index - 1] = 0;
+        }
+        if (time2==0){
+            time2=T1MINUTE;       // Reset time counter
         }
 
-        sprintf(lcd_buffer, "Tot Clicks: %i", rad_counter);
-        fprintf(stdout, "Total Clicks: %i\n\r", rad_counter);
+        clicks_per_minute = sum_array(click_counter, 60);
+        sprintf(lcd_buffer, "%i", rad_counter);
         LCDGotoXY(0, 1);
         LCDstring(lcd_buffer, strlen(lcd_buffer));
-        _delay_ms(50);
+        sprintf(lcd_buffer, "| %i", clicks_per_minute);
+        LCDGotoXY(8, 1);
+        LCDstring(lcd_buffer, strlen(lcd_buffer));
     }
 }
 
 
-void led_heartbeat(void){
-    //toggle the second bit
+void toggle_led(void){
     led = led ^ 1 ;
     PORTD = (led<<PORTD2) ;
+}
+
+
+void clear_array(uint8_t a[], int num_elements){
+    for(int i=0; i<num_elements; i++){
+        a[i] = 0;
+    }
+}
+
+
+int sum_array(uint8_t a[], int num_elements){
+   int sum = 0;
+   for (int i=0; i<num_elements; i++){
+        sum = sum + a[i];
+   }
+   return(sum);
+}
+
+
+void print_array(uint8_t a[], int num_elements){
+    for(int i=0; i<num_elements; i++){
+         fprintf(stdout, "%d ", a[i]);
+    }
+    fprintf(stdout, "\n");
 }
 
 
@@ -81,16 +136,16 @@ void initialize(void){
     DDRD = (1<<PORTD2);    // PORT D.2 is an output
 
     //set up timer 0 for 1 mSec timebase
-    TIMSK0= (1<<OCIE0A);    //turn on timer 0 cmp match ISR
-    OCR0A = 249;          //set the compare register to 250 time ticks
-    //set prescalar to divide by 64
-    TCCR0B= 3;
-    // turn on clear-on-match
-    TCCR0A= (1<<WGM01) ;
+    TIMSK0= (1<<OCIE0A);    // Turn on timer 0 compare match ISR
+    OCR0A = 249;            // Set the compare register to 250 time ticks
+    TCCR0B= 3;              // Set prescalar to divide by 64
+    TCCR0A= (1<<WGM01);     // Turn on clear-on-match
 
     // Init the LED state and task timer
     led=0x00;
-    time1=t1;
+    time1=T250MILLISECONDS;
+    time2=T1MINUTE;
+    clear_array(click_counter, 60);
 
     // Set up the INT1 External Interrupt pin
     EIMSK |= (1 << INT1);           // Turns on INT1
@@ -103,9 +158,7 @@ void initialize(void){
     uart_init();
     stdout = stdin = stderr = &uart_str;
     fprintf(stdout, "\033[2J");
-    fprintf(stdout, "##########################\n\r");
     fprintf(stdout, "Starting Geiger Counter...\n\r");
-    fprintf(stdout, "##########################\n\r");
 
     // Initialize the LCD
     init_lcd();
@@ -123,7 +176,6 @@ void init_lcd(void){
 
     LCDclr();            //clear the display
     LCDGotoXY(0,0);
-    CopyStringtoLCD(LCD_chartbeat, 0, 0);
-    CopyStringtoLCD(LCD_hackweek, 0, 1);
+    CopyStringtoLCD(LCD_header, 0, 0);
 }
 /******************************************************************************/
