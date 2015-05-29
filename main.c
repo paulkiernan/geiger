@@ -18,8 +18,7 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 
 // Program Definitions
 #define T250MILLISECONDS 250
-#define T1SECOND 1000
-#define T1MINUTE 60000
+#define T1MINUTE (1000 * 60)
 
 // Function Prototypes
 void initialize(void);      // All the usual mcu stuff
@@ -28,6 +27,7 @@ void toggle_led(void);      // Blink the LED on PORTD2
 void clear_array(uint8_t a[], int num_elements);
 int  sum_array(uint8_t a[], int num_elements);
 void print_array(uint8_t a[], int num_elements);
+void print_vals_to_lcd(int total_clicks, int cpm);
 
 // Global program variables
 int rad_counter = 0;                // Event accumulator
@@ -73,6 +73,8 @@ int main(void){
     // Main Program loop
     int clicks_per_minute = 0;
     while(1){
+
+        // Time-dependent tasks
         if (time1==0){
             time1=T250MILLISECONDS;     // Reset time counter
             toggle_led();               // Blink LED
@@ -80,23 +82,27 @@ int main(void){
             // Clear adjacent element in circular array
             // Timer counts down from 60 so we -- for the next element
             time2_index = time2/1000;
-            if (time2_index == 0){
-                time2_index = 60;
-            }
-            click_counter[time2_index - 1] = 0;
+            if (time2_index == 0) time2_index = 61;
+            click_counter[time2_index-1] = 0;
         }
         if (time2==0){
             time2=T1MINUTE;       // Reset time counter
         }
 
+        // Calculate CPM and print to LCD
         clicks_per_minute = sum_array(click_counter, 60);
-        sprintf(lcd_buffer, "%i", rad_counter);
-        LCDGotoXY(0, 1);
-        LCDstring(lcd_buffer, strlen(lcd_buffer));
-        sprintf(lcd_buffer, "| %i", clicks_per_minute);
-        LCDGotoXY(8, 1);
-        LCDstring(lcd_buffer, strlen(lcd_buffer));
+        print_vals_to_lcd(rad_counter, clicks_per_minute);
     }
+}
+
+
+void print_vals_to_lcd(int total_clicks, int cpm){
+    sprintf(lcd_buffer, "%i", total_clicks);
+    LCDGotoXY(0, 1);
+    LCDstring(lcd_buffer, strlen(lcd_buffer));
+    sprintf(lcd_buffer, "| %i", cpm);
+    LCDGotoXY(8, 1);
+    LCDstring(lcd_buffer, strlen(lcd_buffer));
 }
 
 
