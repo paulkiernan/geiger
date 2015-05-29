@@ -16,11 +16,12 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 #include <avr/pgmspace.h>   // Another requirement of (static) LCD printing
 #include "lcd_lib.h"        // LCD driver
 
-/* Program Definitions */
+// Program Definitions
 #define T250MILLISECONDS 250
 #define T1SECOND 1000
 #define T1MINUTE 60000
 
+// Function Prototypes
 void initialize(void);      // All the usual mcu stuff
 void init_lcd(void);        // Initalize the LCD
 void toggle_led(void);      // Blink the LED on PORTD2
@@ -28,30 +29,28 @@ void clear_array(uint8_t a[], int num_elements);
 int  sum_array(uint8_t a[], int num_elements);
 void print_array(uint8_t a[], int num_elements);
 
-int rad_counter = 0;            // CPM
-uint8_t lcd_buffer[17];          // LCD display buffer
-volatile unsigned char time1;   // LED blink counter
-volatile unsigned int time2;    // Minute counter
-unsigned char led;              // LED state
+// Global program variables
+int rad_counter = 0;                // Event accumulator
+uint8_t click_counter[60];          // CPM circular array
+volatile unsigned char time1;       // LED blink counter
+volatile unsigned int  time2;       // Minute counter
+volatile unsigned int time2_index;  // In
+unsigned char led;                  // LED state
+uint8_t lcd_buffer[17];             // LCD display buffer
+
+// Default LCD messages
 const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized \0";
 const uint8_t LCD_header[]     PROGMEM = "Total   | CPM   \0";
-uint8_t click_counter[60];
 
-volatile unsigned int time2_index;
 
-/******************************************************************************/
-/* Interrupt Service Routines                                                 */
+//-----------------------------------------------------------------------------+
+// Interrupt Service Routines                                                  +
+//-----------------------------------------------------------------------------+
 
 // Timer 0 compare ISR
 ISR (TIMER0_COMPA_vect){
-    //Decrement the  time if they are not already zero
-    if (time1>0){
-        time1--;
-    }
-    if (time2>0){
-        time2--;
-
-    }
+    if (time1>0) time1--;
+    if (time2>0) time2--;
 }
 
 // Handle trigger
@@ -62,8 +61,11 @@ ISR (INT1_vect){
     // Ping the serial port that we detected an ionization event
     fprintf(stdout, "detected ionization event!\n\r");
 }
-/******************************************************************************/
 
+
+//-----------------------------------------------------------------------------+
+// Main Program function                                                       +
+//-----------------------------------------------------------------------------+
 int main(void){
 
     initialize();
@@ -128,8 +130,9 @@ void print_array(uint8_t a[], int num_elements){
 }
 
 
-/******************************************************************************/
-/* Initializations                                                            */
+//-----------------------------------------------------------------------------+
+// Initializations                                                             +
+//-----------------------------------------------------------------------------+
 void initialize(void){
 
     // Initialize microcontroller ports and registers
@@ -178,4 +181,3 @@ void init_lcd(void){
     LCDGotoXY(0,0);
     CopyStringtoLCD(LCD_header, 0, 0);
 }
-/******************************************************************************/
