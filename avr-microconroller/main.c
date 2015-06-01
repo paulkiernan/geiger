@@ -19,6 +19,7 @@ FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
 // Program Definitions
 #define T250MILLISECONDS 250
 #define T1MINUTE (1000 * 60)
+#define CPM2SIEVERT 0.0057f
 
 // Function Prototypes
 void initialize(void);      // All the usual mcu stuff
@@ -27,7 +28,7 @@ void toggle_led(void);      // Blink the LED on PORTD2
 void clear_array(uint8_t a[], int num_elements);
 int  sum_array(uint8_t a[], int num_elements);
 void print_array(uint8_t a[], int num_elements);
-void print_vals_to_lcd(int total_clicks, int cpm);
+void print_vals_to_lcd(int cpm);
 
 // Global program variables
 int rad_counter = 0;                // Event accumulator
@@ -37,10 +38,12 @@ volatile unsigned int  time2;       // Minute counter
 volatile unsigned int time2_index;  // In
 unsigned char led;                  // LED state
 uint8_t lcd_buffer[17];             // LCD display buffer
+float micro_sieverts_per_hour;      // uSv/hr calculation
+char usv_string[10];                // String buffer for uSv calculation
 
 // Default LCD messages
 const uint8_t LCD_initialize[] PROGMEM = "LCD Initialized \0";
-const uint8_t LCD_header[]     PROGMEM = "Total   | CPM   \0";
+const uint8_t LCD_header[]     PROGMEM = "CPM  | uSv/hr   \0";
 
 
 //-----------------------------------------------------------------------------+
@@ -91,17 +94,24 @@ int main(void){
 
         // Calculate CPM and print to LCD
         clicks_per_minute = sum_array(click_counter, 60);
-        print_vals_to_lcd(rad_counter, clicks_per_minute);
+        print_vals_to_lcd(clicks_per_minute);
     }
 }
 
 
-void print_vals_to_lcd(int total_clicks, int cpm){
-    sprintf(lcd_buffer, "%i", total_clicks);
+void print_vals_to_lcd(int cpm){
+
+    micro_sieverts_per_hour = (float)cpm * CPM2SIEVERT;
+    dtostrf(micro_sieverts_per_hour , 4, 6, usv_string);
+
+    // Write CPM
+    sprintf(lcd_buffer, "%i   ", cpm);
     LCDGotoXY(0, 1);
     LCDstring(lcd_buffer, strlen(lcd_buffer));
-    sprintf(lcd_buffer, "| %i", cpm);
-    LCDGotoXY(8, 1);
+
+    // Write uSv
+    sprintf(lcd_buffer, "| %s", usv_string);
+    LCDGotoXY(5, 1);
     LCDstring(lcd_buffer, strlen(lcd_buffer));
 }
 
