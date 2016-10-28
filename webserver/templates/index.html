@@ -1,0 +1,23 @@
+<HTML>
+<HEAD>
+<TITLE>
+    The Internet
+</TITLE>
+
+<!-- We're in the future, y'all! -->
+<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+
+<script type="text/javascript">
+    var eventSource = new EventSource("/stream");
+    eventSource.onmessage = function(e) {
+        $("#box").append("<br>" + e.data);
+    };
+</script>
+</HEAD>
+<BODY style="font-family:monospace">
+    <div id="box">
+        Waiting for Ionization events from the AVR Microcontroller...<br>
+        =============================================================<br>
+    </div>
+</BODY>
+</HTML>
